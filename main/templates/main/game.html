@@ -1,0 +1,32 @@
+{% extends "main/_base.html" %}
+{% load static %}
+{% block head %}
+	<style>
+		html, body {
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+		#content {
+			height: 100%;
+		}
+		#map {
+			height: 100%;
+		}
+	</style>
+{% endblock %}
+{% block content %}
+	<div id="map"></div>
+	<script>
+		var ICONS = {
+			'avatar-0': "{% static 'main/img/avatar-0.png' %}",
+			'tree': "{% static 'main/img/trees_2x.png' %}",
+		};
+	</script>
+	<script src="{% static 'main/js/util.js' %}"></script>
+	<script src="{% static 'main/js/chat.js' %}"></script>
+	<script src="{% static 'main/js/gmap.js' %}"></script>
+	<script src="{% static 'main/js/game.js' %}"></script>
+	<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&callback=map_init"
+	async defer></script>
+{% endblock %}

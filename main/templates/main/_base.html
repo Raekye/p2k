@@ -1,0 +1,34 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="initial-scale=1" />
+	<title>{% block title %}P2K{% endblock %}</title>
+	<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.6.0/pure-min.css" />
+	{% block head %}{% endblock %}
+</head>
+
+<body>
+	<div class="pure-menu pure-menu-horizontal">
+		<a href="{% url 'main:index' %}" class="pure-menu-heading pure-menu-link">P2K</a>
+		<ul class="pure-menu-list">
+			<li class="pure-menu-item"><a href="{% url 'main:game' %}" class="pure-menu-link">Game</a></li>
+			<li class="pure-menu-item"><a href="#" class="pure-menu-link">Forums</a></li>
+			<li class="pure-menu-item"><a href="#" class="pure-menu-link">Wiki</a></li>
+			<li class="pure-menu-item"><a href="#" class="pure-menu-link">About</a></li>
+			<li class="pure-menu-item"><a href="#" class="pure-menu-link">Blog</a></li>
+			{% if user.is_authenticated %}
+				<li class="pure-menu-item"><a href="#" class="pure-menu-link">Profile</a></li>
+				<li class="pure-menu-item"><a href="{% url 'main:logout' %}" class="pure-menu-link">Log Out</a></li>
+			{% else %}
+				<li class="pure-menu-item"><a href="{% url 'main:login' %}" class="pure-menu-link">Log In</a></li>
+				<li class="pure-menu-item"><a href="{% url 'main:logout' %}" class="pure-menu-link">Sign up</a></li>
+			{% endif %}
+		</ul>
+	</div>
+	<div id="content">
+		{% block content %}{% endblock %}
+	</div>
+</body>
+</html>

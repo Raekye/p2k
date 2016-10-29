@@ -1,0 +1,14 @@
+{% extends "main/_base.html" %}
+{% load static %}
+{% block content %}
+<form method="post" class="pure-form pure-form-aligned">
+	{% csrf_token %}
+	{{ form.non_field_errors }}
+	<fieldset>
+		{% include "main/_form.html" with form=form %}
+		<div class="pure-controls">
+			<button type="submit" class="pure-button pure-button-primary">Sign in</button>
+		</div>
+	</fieldset>
+</form>
+{% endblock %}

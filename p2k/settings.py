@@ -31,6 +31,8 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+	'main.apps.MainConfig',
+	'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -105,7 +107,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Toronto'
 
 USE_I18N = True
 
@@ -118,3 +120,41 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/1.10/howto/static-files/
 
 STATIC_URL = '/static/'
+
+# Custom
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
+
+GOOGLE_MAPS_KEY = os.environ.get('GOOGLE_MAPS_KEY')
+
+CACHES = {
+	'default': {
+		'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
+		'LOCATION': '127.0.0.1:11211',
+		'KEY_PREFIX': 'p2k',
+	}
+}
+
+CHANNEL_LAYERS = {
+	"default": {
+		"BACKEND": "asgiref.inmemory.ChannelLayer",
+		"ROUTING": "main.routing.channel_routing",
+	},
+}
+
+LOGGING = {
+	'version': 1,
+	'disable_existing_loggers': False,
+	'handlers': {
+		'console': {
+			'level': 'DEBUG',
+			'class': 'logging.StreamHandler',
+		},
+	},
+	'loggers': {
+		'django.db.backends': {
+			'level': 'DEBUG',
+			'handlers': ['console'],
+		},
+	},
+}
