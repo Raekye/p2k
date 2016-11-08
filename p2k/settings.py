@@ -129,8 +129,9 @@ GOOGLE_MAPS_KEY = os.environ.get('GOOGLE_MAPS_KEY')
 
 CACHES = {
 	'default': {
-		'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
-		'LOCATION': '127.0.0.1:11211',
+		#'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
+		#'LOCATION': '127.0.0.1:11211',
+		'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
 		'KEY_PREFIX': 'p2k',
 	}
 }

@@ -65,9 +65,9 @@ def world_receive(msg):
 	if data['tag'] == 'move':
 		target_lat = data['data']['target']['lat']
 		target_lon = data['data']['target']['lon']
-		pp = p.player_position()
-		pp.move(target_lat, target_lon)
-		pp.save()
+		m = p.motion()
+		m.move(target_lat, target_lon)
+		m.save()
 		if p.can_move_to(target_lat, target_lon):
 			pprint(msg.channel_session['chunks'])
 			event_id = str(uuid.uuid4())
@@ -80,26 +80,26 @@ def world_receive(msg):
 						'data': {
 							'player': str(p.id),
 							'start': {
-								'lat': pp.lat,
-								'lon': pp.lon,
-								't': pp.t1,
+								'lat': m.lat,
+								'lon': m.lon,
+								't': m.t1,
 							},
 							'end': {
-								'lat': pp.lat2,
-								'lon': pp.lon2,
-								't': pp.t2,
+								'lat': m.lat2,
+								'lon': m.lon2,
+								't': m.t2,
 							},
 						},
 					}),
 				})
 	elif data['tag'] == 'recentre':
-		pp = p.player_position()
-		pp.recenter()
-		pp.cancel()
-		p.centre_lat = pp.lat
-		p.centre_lon = pp.lon
-		p.pos_lat = pp.lat
-		p.pos_lon = pp.lon
+		m = p.motion()
+		m.recenter()
+		m.cancel()
+		p.centre_lat = m.lat
+		p.centre_lon = m.lon
+		p.lat = m.lat
+		p.lon = m.lon
 		p.save()
 		world_send_load(msg, p)
 
@@ -134,8 +134,8 @@ def world_send_load(msg, p):
 					'lon': p.centre_lon,
 				},
 				'pos': {
-					'lat': p.pos_lat,
-					'lon': p.pos_lon,
+					'lat': p.lat,
+					'lon': p.lon,
 				},
 				'entities': entities,
 			},

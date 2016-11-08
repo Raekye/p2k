@@ -19,28 +19,44 @@ class BaseModel(models.Model):
 	class Meta:
 		abstract = True
 
-class Player(BaseModel):
+class ItemModel(BaseModel):
+	tag = models.IntegerField()
+	quantity = models.IntegerField()
+	metadata = models.BinaryField()
+
+	class Meta:
+		abstract = True
+
+class LivingEntity(BaseModel):
+	lat = models.FloatField()
+	lon = models.FloatField()
+	hp = models.IntegerField()
+
+	@property
+	def motion(self):
+		if self._motion is None:
+			self._motion = EntityMotion.fetch(self)
+		return self._motion
+
+	class Meta:
+		abstract = True
+
+class Player(LivingEntity):
 	user = models.OneToOneField(settings.AUTH_USER_MODEL, models.CASCADE)
 	city = models.ForeignKey('City', null=True, related_name='members')
 	clan = models.ForeignKey('Clan', null=True, related_name='members')
 
-	hp = models.IntegerField()
 	avatar = models.IntegerField()
 	gold = models.IntegerField()
 
 	centre_lat = models.FloatField()
 	centre_lon = models.FloatField()
-	pos_lat = models.FloatField()
-	pos_lon = models.FloatField()
 
 	status = models.CharField(max_length=64)
 	bio = models.CharField(max_length=256)
 
 	def can_move_to(self, lat, lon):
 		return Chunk.distance(self.centre_lat, self.centre_lon, lat, lon) < 800
-
-	def player_position(self):
-		return PlayerPosition.cache.get_or_set('player-pos.' + str(self.id), PlayerPosition(self), 3600)
 
 	@staticmethod
 	def effective_level(l):
@@ -50,15 +66,10 @@ class Player(BaseModel):
 	def create(u):
 		lat = -34.397
 		lon = 150.644
-		return Player(user=u, hp=100, avatar=0, gold=100, centre_lat=lat, centre_lon=lon, pos_lat=lat, pos_lon=lon)
+		return Player(user=u, hp=100, avatar=0, gold=100, centre_lat=lat, centre_lon=lon, lat=lat, lon=lon)
 
-class ItemModel(BaseModel):
+class Mob(LivingEntity):
 	tag = models.IntegerField()
-	quantity = models.IntegerField()
-	metadata = models.BinaryField()
-
-	class Meta:
-		abstract = True
 
 class Structure(BaseModel):
 	tag = models.IntegerField()
@@ -123,14 +134,47 @@ class GroundItem(ItemModel):
 	lon = models.FloatField()
 
 # Non Django
-class Chunk(tuple):
+class Chunk:
 	cache = caches['default']
 	GRANULARITY = 100.0
+	PERIOD = 15
 
-	def __new__(cls, ll):
-		return super(Chunk, cls).__new__(cls, ll)
+	def __init__(s, w):
+		self.y = s
+		self.x = w
+		self.s = s / Chunk.GRANULARITY
+		self.w = w / Chunk.GRANULARITY
+		self.n = (s + 1) / Chunk.GRANULARITY
+		self.e = (w + 1) / Chunk.GRANULARITY
+		self.key = 'chunk.' + str(self.y) + "_" + str(self.x)
+		self.entities = {}
 
-	def load(self, entities):
+	def load(self):
+		self.preload()
+		entities = self.get_entities()
+		for p in entities['players']:
+			pass
+		for s in entities['structures']:
+			pass
+		for m in entities['mobs']:
+			pass
+		for i in entities['items']:
+			pass
+
+	def get_entities(self):
+		return {
+			'players': Player.objects.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
+			'structures': Structures.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
+			'mobs': Mobs.objects.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
+			'items': GroundItem.objects.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
+		}
+
+	def preload(self):
+		if Chunk.cache.add(self.key, True, Chunk.PERIOD):
+			print('Generating ' + self.key + ' ...')
+			self.generate()
+
+	def aload(self, entities):
 		if Chunk.cache.add('chunk-' + self.to_key(), True, 15):
 			print('Generating')
 			self.generate()
@@ -140,7 +184,7 @@ class Chunk(tuple):
 		w = self[1] / Chunk.GRANULARITY
 		n = (self[0] + 1) / Chunk.GRANULARITY
 		e = (self[1] + 1) / Chunk.GRANULARITY
-		players = Player.objects.filter(pos_lat__gte=s, pos_lat__lt=n, pos_lon__gte=w, pos_lon__lt=e)
+		players = Player.objects.filter(lat__gte=s, lat__lt=n, lon__gte=w, lon__lt=e)
 		for p in players:
 			print(p.user.username + ", " + str(p.id))
 		structures = self.get_structures()
@@ -170,7 +214,7 @@ class Chunk(tuple):
 		e = (self[1] + 1) / Chunk.GRANULARITY
 		return Structure.objects.filter(lat__gte=s, lat__lt=n, lon__gte=w, lon__lt=e)
 
-	def generate(self):
+	def agenerate(self):
 		structures = self.get_structures()
 		num = random.randint(4, 16)
 		print('num is ' + str(num) + ', count is ' + str(structures.count()))
@@ -267,15 +311,14 @@ class Chunk(tuple):
 		xd = (lon2 - lon1) * D2R * z
 		return EARTH_RADIUS * math.sqrt(yd * yd + xd * xd)
 
-class PlayerPosition(object):
+class EntityMotion:
 	cache = caches['default']
 
-	def __init__(self, p):
-		self.player = p.id
-		self.lat2 = p.pos_lat
-		self.lon2 = p.pos_lon
-		self.t1 = 0
-		self.t2 = 0
+	def __init__(self, entity, lat, lon, lat2, lon2, t1, t2):
+		self.entity = entity
+		(self.lat, self.lon) = (lat, lon)
+		(self.lat2, self.lon2) = (lat2, lon2)
+		(self.t1, self.t2) = (t1, t2)
 
 	def recenter(self):
 		now = time.time()
@@ -289,6 +332,7 @@ class PlayerPosition(object):
 			self.lon = self.lon2
 
 	def cancel(self):
+		self.recenter()
 		self.t2 = 0
 
 	def move(self, lat2, lon2):
@@ -301,4 +345,25 @@ class PlayerPosition(object):
 		self.lon2 = lon2
 
 	def save(self):
-		PlayerPosition.cache.set('player-pos.' + str(self.player), self, 3600)
+		tag = entity.__class__.__name__.lower()
+		EntityMotion.cache.set(tag + '.motion.' + str(self.entity.id), self.serialize())
+
+	def sync(self):
+		self.recenter()
+		self.entity.update(lat=self.lat, lon=self.lon)
+
+	def serialize(self):
+		return (self.lat, self.lon, self.lat2, self.lon2, self.t1, self.t2)
+
+	@staticmethod
+	def deserialize(entity, data):
+		return EntityMotion(entity, *data)
+
+	@staticmethod
+	def fetch(entity):
+		tag = entity.__class__.__name__.lower()
+		return self.deserialize(entity, EntityMotion.cache.get_or_set(tag + '.motion.' + str(entity.id), lambda: self.create(entity), 3600))
+
+	@staticmethod
+	def create(entity):
+		return EntityMotion(entity, 0, 0, entity.lat, entity.lon, 0, 0)
