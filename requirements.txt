@@ -1,12 +1,12 @@
 amqp==2.1.1
 asgiref==0.14.0
 autobahn==0.16.0
-billiard==3.5.0.1
-celery==4.0.0rc6
+billiard==3.5.0.2
+celery==4.0.0
 channels==0.17.3
 daphne==0.15.0
 Django==1.10.2
-kombu==4.0.0rc6
+kombu==4.0.0
 python-memcached==1.58
 pytz==2016.7
 six==1.10.0
