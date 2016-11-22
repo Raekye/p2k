@@ -116,7 +116,7 @@ def world_send_load(msg, p):
 		print('Discarding chunks')
 		for c in msg.channel_session['chunks']:
 			Group('chunk-' + models.Chunk(c).to_key()).discard(msg.reply_channel)
-	msg.channel_session['chunks'] = list(chunks)
+	msg.channel_session['chunks'] = list(map(lambda c: c.parts, chunks))
 	entities = {
 		'players': {},
 		'structures': {},

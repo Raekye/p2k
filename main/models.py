@@ -9,6 +9,8 @@ import random
 import datetime
 from pprint import pprint
 
+import pdb
+
 # Create your models here.
 
 class BaseModel(models.Model):
@@ -34,7 +36,9 @@ class LivingEntity(BaseModel):
 
 	@property
 	def motion(self):
-		if self._motion is None:
+		try:
+			return self._motion
+		except AttributeError:
 			self._motion = EntityMotion.fetch(self)
 		return self._motion
 
@@ -136,69 +140,37 @@ class GroundItem(ItemModel):
 # Non Django
 class Chunk:
 	cache = caches['default']
-	GRANULARITY = 100.0
+	GRANULARITY = 100
 	PERIOD = 15
 
-	def __init__(s, w):
+	def __init__(self, parts):
+		assert(len(parts) == 2)
+		(s, w) = parts
+		assert(isinstance(s, int))
+		assert(isinstance(w, int))
+		self.parts = parts
 		self.y = s
 		self.x = w
-		self.s = s / Chunk.GRANULARITY
-		self.w = w / Chunk.GRANULARITY
-		self.n = (s + 1) / Chunk.GRANULARITY
-		self.e = (w + 1) / Chunk.GRANULARITY
+		self.s = s * 1.0 / Chunk.GRANULARITY
+		self.w = w * 1.0 / Chunk.GRANULARITY
+		self.n = (s + 1) * 1.0 / Chunk.GRANULARITY
+		self.e = (w + 1) * 1.0 / Chunk.GRANULARITY
 		self.key = 'chunk.' + str(self.y) + "_" + str(self.x)
-		self.entities = {}
+		self.entities = None
 
-	def load(self):
+	def load(self, entities):
 		self.preload()
-		entities = self.get_entities()
-		for p in entities['players']:
-			pass
-		for s in entities['structures']:
-			pass
-		for m in entities['mobs']:
-			pass
-		for i in entities['items']:
-			pass
-
-	def get_entities(self):
-		return {
-			'players': Player.objects.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
-			'structures': Structures.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
-			'mobs': Mobs.objects.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
-			'items': GroundItem.objects.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
-		}
-
-	def preload(self):
-		if Chunk.cache.add(self.key, True, Chunk.PERIOD):
-			print('Generating ' + self.key + ' ...')
-			self.generate()
-
-	def aload(self, entities):
-		if Chunk.cache.add('chunk-' + self.to_key(), True, 15):
-			print('Generating')
-			self.generate()
-		else:
-			print('Already generated')
-		s = self[0] / Chunk.GRANULARITY
-		w = self[1] / Chunk.GRANULARITY
-		n = (self[0] + 1) / Chunk.GRANULARITY
-		e = (self[1] + 1) / Chunk.GRANULARITY
-		players = Player.objects.filter(lat__gte=s, lat__lt=n, lon__gte=w, lon__lt=e)
-		for p in players:
-			print(p.user.username + ", " + str(p.id))
-		structures = self.get_structures()
-		for p in players:
-			pp = p.player_position()
-			pp.recenter()
+		mines = self.get_entities()
+		for p in mines['players']:
+			p.motion.recenter()
 			entities['players'][str(p.id)] = {
 				'username': p.user.username,
 				'pos': {
-					'lat': pp.lat,
-					'lon': pp.lon,
+					'lat': p.motion.lat,
+					'lon': p.motion.lon,
 				},
 			}
-		for s in structures:
+		for s in mines['structures']:
 			entities['structures'][str(s.id)] = {
 				'tag': s.tag,
 				'pos': {
@@ -206,23 +178,38 @@ class Chunk:
 					'lon': s.lon,
 				},
 			}
+		for m in mines['mobs']:
+			pass
+		for i in mines['items']:
+			pass
 
 	def get_structures(self):
-		s = self[0] / Chunk.GRANULARITY
-		w = self[1] / Chunk.GRANULARITY
-		n = (self[0] + 1) / Chunk.GRANULARITY
-		e = (self[1] + 1) / Chunk.GRANULARITY
-		return Structure.objects.filter(lat__gte=s, lat__lt=n, lon__gte=w, lon__lt=e)
+		return Structure.objects.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e)
 
-	def agenerate(self):
-		structures = self.get_structures()
+	def get_entities(self):
+		if self.entities is None:
+			self.entities = {
+				'players': Player.objects.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
+				'structures': self.get_structures(),
+				'mobs': Mob.objects.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
+				'items': GroundItem.objects.filter(lat__gte=self.s, lat__lt=self.n, lon__gte=self.w, lon__lt=self.e),
+			}
+		return self.entities
+
+	def preload(self):
+		if Chunk.cache.add(self.key, True, Chunk.PERIOD):
+			print('Generating ' + self.key + ' ...')
+			self.generate()
+
+	def generate(self):
+		structures = self.get_entities()['structures']
 		num = random.randint(4, 16)
 		print('num is ' + str(num) + ', count is ' + str(structures.count()))
 		if structures.count() < num:
 			structures = list(structures)
 			for i in range(len(structures), num):
-				lat = (random.random() + self[0]) / Chunk.GRANULARITY
-				lon = (random.random() + self[1]) / Chunk.GRANULARITY
+				lat = (random.random() + self.y) / Chunk.GRANULARITY
+				lon = (random.random() + self.x) / Chunk.GRANULARITY
 				badness = False
 				for y in structures:
 					d = Chunk.distance(lat, lon, y.lat, y.lon)
@@ -235,9 +222,8 @@ class Chunk:
 				x.save()
 				structures.append(x)
 
-
 	def to_key(self):
-		return str(self[0]) + '_' + str(self[1])
+		return str(self.y) + '_' + str(self.x)
 
 	@staticmethod
 	def from_key(s):
@@ -260,12 +246,11 @@ class Chunk:
 		pprint(sw)
 		pprint(ne)
 		ret = set()
-		for y in range(sw[0], ne[0] + 1):
-			for x in range(sw[1], ne[1] + 1):
+		for y in range(sw.y, ne.y + 1):
+			for x in range(sw.x, ne.x + 1):
 				ret.add(Chunk((y, x)))
 		pprint(ret)
 		return ret
-
 
 	@staticmethod
 	def lower_left_corner(lat, lon):
@@ -273,14 +258,13 @@ class Chunk:
 		assert(lat > -86)
 		assert(lon < 360)
 		assert(lon > -360)
-		ROUND_TO_INVERSE = 1000 / 10
 		if lat > 85:
 			lat = 85
 		elif lat < -85:
 			lat = -85
 		lon = (lon + 180) % 360 - 180
-		lat2 = math.floor(lat * ROUND_TO_INVERSE)
-		lon2 = math.floor(lon * ROUND_TO_INVERSE)
+		lat2 = math.floor(lat * Chunk.GRANULARITY)
+		lon2 = math.floor(lon * Chunk.GRANULARITY)
 		return (lat2, lon2)
 
 	@staticmethod
@@ -357,12 +341,14 @@ class EntityMotion:
 
 	@staticmethod
 	def deserialize(entity, data):
+		if isinstance(data, EntityMotion):
+			return data
 		return EntityMotion(entity, *data)
 
 	@staticmethod
 	def fetch(entity):
 		tag = entity.__class__.__name__.lower()
-		return self.deserialize(entity, EntityMotion.cache.get_or_set(tag + '.motion.' + str(entity.id), lambda: self.create(entity), 3600))
+		return EntityMotion.deserialize(entity, EntityMotion.cache.get_or_set(tag + '.motion.' + str(entity.id), lambda: EntityMotion.create(entity), 3600))
 
 	@staticmethod
 	def create(entity):
